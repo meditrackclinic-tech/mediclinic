@@ -1,0 +1,27 @@
+<svg width="760" height="520" viewBox="0 0 760 520" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="760" height="520" rx="28" fill="#F7FBFD"/>
+  <rect x="42" y="42" width="676" height="436" rx="24" fill="white" stroke="#CFE0E7" stroke-width="2"/>
+  <rect x="74" y="78" width="198" height="78" rx="18" fill="#E8F6F7"/>
+  <rect x="306" y="78" width="168" height="78" rx="18" fill="#EAF2FF"/>
+  <rect x="508" y="78" width="178" height="78" rx="18" fill="#EEF8F2"/>
+  <rect x="98" y="102" width="76" height="12" rx="6" fill="#0E7C86"/>
+  <rect x="98" y="128" width="126" height="12" rx="6" fill="#5D7480"/>
+  <rect x="330" y="102" width="62" height="12" rx="6" fill="#2A6FB0"/>
+  <rect x="330" y="128" width="104" height="12" rx="6" fill="#5D7480"/>
+  <rect x="532" y="102" width="78" height="12" rx="6" fill="#2C8B68"/>
+  <rect x="532" y="128" width="112" height="12" rx="6" fill="#5D7480"/>
+  <rect x="74" y="198" width="294" height="224" rx="20" fill="#F4F8FB" stroke="#D7E6EC" stroke-width="2"/>
+  <rect x="106" y="232" width="90" height="12" rx="6" fill="#102A36"/>
+  <rect x="106" y="276" width="36" height="98" rx="12" fill="#0E7C86"/>
+  <rect x="166" y="304" width="36" height="70" rx="12" fill="#2A6FB0"/>
+  <rect x="226" y="256" width="36" height="118" rx="12" fill="#2C8B68"/>
+  <rect x="286" y="292" width="36" height="82" rx="12" fill="#C4861A"/>
+  <rect x="404" y="198" width="282" height="224" rx="20" fill="#F4F8FB" stroke="#D7E6EC" stroke-width="2"/>
+  <circle cx="458" cy="258" r="28" fill="#E8F6F7"/>
+  <path d="M458 239v38M439 258h38" stroke="#0E7C86" stroke-width="8" stroke-linecap="round"/>
+  <rect x="506" y="236" width="122" height="12" rx="6" fill="#102A36"/>
+  <rect x="506" y="262" width="84" height="10" rx="5" fill="#5D7480"/>
+  <rect x="432" y="326" width="216" height="48" rx="14" fill="white" stroke="#CFE0E7" stroke-width="2"/>
+  <rect x="456" y="344" width="90" height="10" rx="5" fill="#0E7C86"/>
+  <rect x="560" y="344" width="52" height="10" rx="5" fill="#5D7480"/>
+</svg>

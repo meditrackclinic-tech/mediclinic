@@ -1,0 +1,10 @@
+node_modules/
+dist/
+coverage/
+.env
+*.log
+server/data/database.json
+server/data/test-database.json
+*-DESKTOP-*.*
+.claude/
+.vscode/

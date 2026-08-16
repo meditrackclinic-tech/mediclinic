@@ -1,0 +1,21 @@
+{
+  "name": "patient-symptom-record-system",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Academic prototype for an intelligent patient symptom record management system using NLP and temporal tracking.",
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm.cmd --workspace server run dev\" \"npm.cmd --workspace client run dev\"",
+    "dev:reset": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/free-dev-ports.ps1 && npm.cmd run dev",
+    "ports:free": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/free-dev-ports.ps1",
+    "start": "npm.cmd --workspace server start",
+    "test": "npm.cmd --workspace server test",
+    "install:all": "npm.cmd install"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
