@@ -45,10 +45,19 @@ export function AdminUsersPage() {
   const [isDeleting, setIsDeleting] = useState(false);
 
   async function loadAccessData() {
-    const [userData, roleData, emailData] = await Promise.all([
+    const emailRequest = apiRequest("/users/email-status")
+      .then((emailData) => setEmailStatus(emailData.email))
+      .catch((error) =>
+        setEmailStatus({
+          configured: false,
+          operational: false,
+          message: `Email status could not be checked: ${error.message}`
+        })
+      );
+
+    const [userData, roleData] = await Promise.all([
       apiRequest("/users"),
-      apiRequest("/users/roles"),
-      apiRequest("/users/email-status")
+      apiRequest("/users/roles")
     ]);
     const nextAssignableRoles = roleData.assignableRoles?.length
       ? roleData.assignableRoles
@@ -57,12 +66,13 @@ export function AdminUsersPage() {
     setUsers(userData.users);
     setRoles(roleData.roles?.length ? roleData.roles : fallbackRoles);
     setAssignableRoles(nextAssignableRoles);
-    setEmailStatus(emailData.email);
     setNewUser((current) =>
       nextAssignableRoles.some((role) => role.id === current.role)
         ? current
         : { ...current, role: nextAssignableRoles[0]?.id || "nurse" }
     );
+
+    await emailRequest;
   }
 
   useEffect(() => {
@@ -246,7 +256,13 @@ export function AdminUsersPage() {
           <div className={emailStatus?.operational ? "email-status-card active" : "email-status-card"}>
             <MailCheck size={20} />
             <div>
-              <strong>{emailStatus?.operational ? "Email delivery active" : "Email delivery unavailable"}</strong>
+              <strong>
+                {emailStatus === null
+                  ? "Checking email delivery"
+                  : emailStatus.operational
+                    ? "Email delivery active"
+                    : "Email delivery unavailable"}
+              </strong>
               <p>{emailStatus?.message || "Checking email delivery settings."}</p>
               {emailStatus?.configured ? (
                 <span>

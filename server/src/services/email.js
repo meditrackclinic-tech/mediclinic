@@ -6,6 +6,8 @@ function hasSmtpConfig() {
 }
 
 let transporter;
+let verificationCache;
+const verificationCacheMs = 5 * 60 * 1000;
 
 function getTransporter() {
   if (!transporter) {
@@ -72,13 +74,22 @@ export async function getVerifiedEmailDeliveryStatus() {
     return status;
   }
 
+  if (
+    verificationCache &&
+    Date.now() - verificationCache.checkedAt < verificationCacheMs
+  ) {
+    return verificationCache.status;
+  }
+
   try {
     await getTransporter().verify();
-    return {
+    const verifiedStatus = {
       ...status,
       operational: true,
       message: "Email delivery is active and the SMTP account is authenticated."
     };
+    verificationCache = { checkedAt: Date.now(), status: verifiedStatus };
+    return verifiedStatus;
   } catch (error) {
     console.error("[email-verification-error]", {
       code: error.code,
@@ -87,7 +98,7 @@ export async function getVerifiedEmailDeliveryStatus() {
     });
 
     const authenticationFailed = error.code === "EAUTH" || error.responseCode === 535;
-    return {
+    const failedStatus = {
       ...status,
       operational: false,
       errorCode: authenticationFailed ? "SMTP_AUTH_FAILED" : "SMTP_CONNECTION_FAILED",
@@ -95,6 +106,8 @@ export async function getVerifiedEmailDeliveryStatus() {
         ? "Gmail rejected the SMTP login. Replace SMTP_PASS with a valid Google App Password and restart the server."
         : "The SMTP server could not be reached. Check the host, port, network, and provider settings."
     };
+    verificationCache = { checkedAt: Date.now(), status: failedStatus };
+    return failedStatus;
   }
 }
 
