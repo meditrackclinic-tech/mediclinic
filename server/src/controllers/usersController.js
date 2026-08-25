@@ -14,7 +14,7 @@ import {
   updateUserPassword
 } from "../data/staffStore.js";
 import {
-  getEmailDeliveryStatus,
+  getVerifiedEmailDeliveryStatus,
   sendStaffCredentialsEmail,
   sendStaffPasswordResetEmail,
   sendSystemTestEmail
@@ -57,8 +57,25 @@ export async function listStaffRoles(req, res) {
   });
 }
 
-export function getStaffEmailStatus(req, res) {
-  return res.json({ email: getEmailDeliveryStatus() });
+export async function getStaffEmailStatus(req, res) {
+  return res.json({ email: await getVerifiedEmailDeliveryStatus() });
+}
+
+async function requireOperationalEmail(res) {
+  if (process.env.NODE_ENV === "test") {
+    return true;
+  }
+
+  const email = await getVerifiedEmailDeliveryStatus();
+  if (email.operational) {
+    return true;
+  }
+
+  res.status(503).json({
+    message: `Staff account email is unavailable. ${email.message}`,
+    email
+  });
+  return false;
 }
 
 export async function sendStaffEmailTest(req, res) {
@@ -68,6 +85,10 @@ export async function sendStaffEmailTest(req, res) {
   }
 
   const to = parsed.data.to || req.user.email;
+  if (!(await requireOperationalEmail(res))) {
+    return;
+  }
+
   const emailDelivery = await sendSystemTestEmail({
     to,
     name: req.user.name
@@ -78,7 +99,15 @@ export async function sendStaffEmailTest(req, res) {
     mode: emailDelivery.mode
   });
 
-  return res.json({ emailDelivery, email: getEmailDeliveryStatus() });
+  if (process.env.NODE_ENV !== "test" && !emailDelivery.sent) {
+    return res.status(502).json({
+      message: "The SMTP connection was verified, but the test email could not be sent.",
+      emailDelivery,
+      email: await getVerifiedEmailDeliveryStatus()
+    });
+  }
+
+  return res.json({ emailDelivery, email: await getVerifiedEmailDeliveryStatus() });
 }
 
 export async function createUser(req, res) {
@@ -92,6 +121,10 @@ export async function createUser(req, res) {
 
   if (existingUser) {
     return res.status(409).json({ message: "A user with this email already exists." });
+  }
+
+  if (!(await requireOperationalEmail(res))) {
+    return;
   }
 
   const temporaryPassword = generateTemporaryPassword();
@@ -111,6 +144,19 @@ export async function createUser(req, res) {
     password: temporaryPassword,
     role: user.role
   });
+
+  if (process.env.NODE_ENV !== "test" && !emailDelivery.sent) {
+    await deleteStaffUser(user.id);
+    await addAuditLog(req.user.id, "user.create_email_failed", {
+      targetEmail: user.email,
+      role: user.role,
+      mode: emailDelivery.mode
+    });
+    return res.status(502).json({
+      message: "The login email could not be delivered, so the staff account was not created. Please test email delivery and try again.",
+      emailDelivery
+    });
+  }
 
   return res.status(201).json({
     user,
@@ -160,7 +206,26 @@ export async function resetUserPassword(req, res) {
     return res.status(400).json({ message: "The protected admin password cannot be reset here." });
   }
 
+  if (!(await requireOperationalEmail(res))) {
+    return;
+  }
+
   const temporaryPassword = generateTemporaryPassword();
+  const emailDelivery = await sendStaffPasswordResetEmail({
+    to: user.email,
+    name: user.name,
+    email: user.email,
+    password: temporaryPassword,
+    role: user.role
+  });
+
+  if (process.env.NODE_ENV !== "test" && !emailDelivery.sent) {
+    return res.status(502).json({
+      message: "The password-reset email could not be delivered. The existing password remains unchanged.",
+      emailDelivery
+    });
+  }
+
   const updatedUser = await updateUserPassword(
     user.id,
     await bcrypt.hash(temporaryPassword, env.passwordRounds),
@@ -169,14 +234,6 @@ export async function resetUserPassword(req, res) {
 
   await addAuditLog(req.user.id, "user.password_reset", {
     targetUserId: user.id,
-    role: user.role
-  });
-
-  const emailDelivery = await sendStaffPasswordResetEmail({
-    to: user.email,
-    name: user.name,
-    email: user.email,
-    password: temporaryPassword,
     role: user.role
   });
 

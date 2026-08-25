@@ -107,7 +107,7 @@ export function AdminUsersPage() {
       setMessage(
         data.emailDelivery?.sent
           ? "User account created and login details were emailed."
-          : "User account created. Login details were written to the server console because SMTP is not configured yet."
+          : `User account created, but email delivery failed${data.emailDelivery?.error ? `: ${data.emailDelivery.error}` : "."}`
       );
     } catch (error) {
       setMessage(error.message);
@@ -152,7 +152,7 @@ export function AdminUsersPage() {
       setMessage(
         data.emailDelivery?.sent
           ? "Temporary password sent to the staff email address."
-          : "Temporary password reset. Email is not configured, so the password was written to the server console."
+          : `Temporary password reset, but email delivery failed${data.emailDelivery?.error ? `: ${data.emailDelivery.error}` : "."}`
       );
     } catch (error) {
       setMessage(error.message);
@@ -243,10 +243,10 @@ export function AdminUsersPage() {
             title="Add Staff User"
             description="Create receptionist, nurse, and doctor accounts. The system admin account is protected."
           />
-          <div className={emailStatus?.configured ? "email-status-card active" : "email-status-card"}>
+          <div className={emailStatus?.operational ? "email-status-card active" : "email-status-card"}>
             <MailCheck size={20} />
             <div>
-              <strong>{emailStatus?.configured ? "Email delivery active" : "Email delivery in console mode"}</strong>
+              <strong>{emailStatus?.operational ? "Email delivery active" : "Email delivery unavailable"}</strong>
               <p>{emailStatus?.message || "Checking email delivery settings."}</p>
               {emailStatus?.configured ? (
                 <span>

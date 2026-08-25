@@ -5,6 +5,27 @@ function hasSmtpConfig() {
   return Boolean(env.smtp.host && env.smtp.user && env.smtp.pass);
 }
 
+let transporter;
+
+function getTransporter() {
+  if (!transporter) {
+    transporter = nodemailer.createTransport({
+      host: env.smtp.host,
+      port: env.smtp.port,
+      secure: env.smtp.port === 465,
+      auth: {
+        user: env.smtp.user,
+        pass: env.smtp.pass
+      },
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 15000
+    });
+  }
+
+  return transporter;
+}
+
 function maskEmail(value) {
   if (!value || !value.includes("@")) {
     return value ? "configured" : "";
@@ -18,6 +39,7 @@ export function getEmailDeliveryStatus() {
   if (process.env.NODE_ENV === "test") {
     return {
       configured: false,
+      operational: false,
       mode: "console",
       host: "",
       port: env.smtp.port,
@@ -31,15 +53,49 @@ export function getEmailDeliveryStatus() {
 
   return {
     configured,
+    operational: false,
     mode: configured ? "smtp" : "console",
     host: env.smtp.host || "",
     port: env.smtp.port,
     user: maskEmail(env.smtp.user),
     from: env.smtp.from,
     message: configured
-      ? "SMTP is configured. Staff credentials will be sent by email."
+      ? "SMTP settings were found. Checking the mail-server connection."
       : "SMTP is not configured. Temporary passwords are written to the backend terminal."
   };
+}
+
+export async function getVerifiedEmailDeliveryStatus() {
+  const status = getEmailDeliveryStatus();
+
+  if (process.env.NODE_ENV === "test" || !status.configured) {
+    return status;
+  }
+
+  try {
+    await getTransporter().verify();
+    return {
+      ...status,
+      operational: true,
+      message: "Email delivery is active and the SMTP account is authenticated."
+    };
+  } catch (error) {
+    console.error("[email-verification-error]", {
+      code: error.code,
+      responseCode: error.responseCode,
+      message: error.message
+    });
+
+    const authenticationFailed = error.code === "EAUTH" || error.responseCode === 535;
+    return {
+      ...status,
+      operational: false,
+      errorCode: authenticationFailed ? "SMTP_AUTH_FAILED" : "SMTP_CONNECTION_FAILED",
+      message: authenticationFailed
+        ? "Gmail rejected the SMTP login. Replace SMTP_PASS with a valid Google App Password and restart the server."
+        : "The SMTP server could not be reached. Check the host, port, network, and provider settings."
+    };
+  }
 }
 
 async function sendStaffAccessEmail({ to, subject, text }) {
@@ -55,17 +111,7 @@ async function sendStaffAccessEmail({ to, subject, text }) {
     return { sent: false, mode: "console" };
   }
 
-  const transporter = nodemailer.createTransport({
-    host: env.smtp.host,
-    port: env.smtp.port,
-    secure: env.smtp.port === 465,
-    auth: {
-      user: env.smtp.user,
-      pass: env.smtp.pass
-    }
-  });
-
-  await transporter.sendMail({
+  await getTransporter().sendMail({
     from: env.smtp.from,
     to,
     subject,

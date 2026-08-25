@@ -87,6 +87,10 @@ switch ($provider) {
 }
 
 $smtpUser = Read-RequiredValue "Sender email address"
+if ($smtpUser -notmatch '^[^\s@]+@[^\s@]+\.[^\s@]+$') {
+  throw "Enter the complete sender email address, for example clinic@example.com."
+}
+
 $securePassword = Read-Host "SMTP app password" -AsSecureString
 $smtpPassword = ConvertFrom-SecureStringToPlainText $securePassword
 
@@ -97,6 +101,32 @@ if ([string]::IsNullOrWhiteSpace($smtpPassword)) {
 $fromName = Read-Host "From name (default: MediTrack NLP)"
 if ([string]::IsNullOrWhiteSpace($fromName)) {
   $fromName = "MediTrack NLP"
+}
+
+Write-Host ""
+Write-Host "Verifying SMTP connection and login before saving..." -ForegroundColor Cyan
+
+$smtpKeys = @("SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASS")
+$previousSmtpValues = @{}
+foreach ($key in $smtpKeys) {
+  $previousSmtpValues[$key] = [Environment]::GetEnvironmentVariable($key, "Process")
+}
+
+try {
+  $env:SMTP_HOST = $smtpHost
+  $env:SMTP_PORT = $smtpPort
+  $env:SMTP_USER = $smtpUser
+  $env:SMTP_PASS = $smtpPassword
+
+  & node (Join-Path $PSScriptRoot "verify-smtp.mjs")
+
+  if ($LASTEXITCODE -ne 0) {
+    throw "SMTP verification failed. Nothing was saved. For Gmail, use a 16-character Google App Password."
+  }
+} finally {
+  foreach ($key in $smtpKeys) {
+    [Environment]::SetEnvironmentVariable($key, $previousSmtpValues[$key], "Process")
+  }
 }
 
 $envLines = Get-Content $EnvPath
