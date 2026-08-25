@@ -14,7 +14,7 @@ import {
   updateUserPassword
 } from "../data/staffStore.js";
 import {
-  getVerifiedEmailDeliveryStatus,
+  getEmailDeliveryStatus,
   sendStaffCredentialsEmail,
   sendStaffPasswordResetEmail,
   sendSystemTestEmail
@@ -58,24 +58,7 @@ export async function listStaffRoles(req, res) {
 }
 
 export async function getStaffEmailStatus(req, res) {
-  return res.json({ email: await getVerifiedEmailDeliveryStatus() });
-}
-
-async function requireOperationalEmail(res) {
-  if (process.env.NODE_ENV === "test") {
-    return true;
-  }
-
-  const email = await getVerifiedEmailDeliveryStatus();
-  if (email.operational) {
-    return true;
-  }
-
-  res.status(503).json({
-    message: `Staff account email is unavailable. ${email.message}`,
-    email
-  });
-  return false;
+  return res.json({ email: getEmailDeliveryStatus() });
 }
 
 export async function sendStaffEmailTest(req, res) {
@@ -85,10 +68,6 @@ export async function sendStaffEmailTest(req, res) {
   }
 
   const to = parsed.data.to || req.user.email;
-  if (!(await requireOperationalEmail(res))) {
-    return;
-  }
-
   const emailDelivery = await sendSystemTestEmail({
     to,
     name: req.user.name
@@ -103,11 +82,11 @@ export async function sendStaffEmailTest(req, res) {
     return res.status(502).json({
       message: "The SMTP connection was verified, but the test email could not be sent.",
       emailDelivery,
-      email: await getVerifiedEmailDeliveryStatus()
+      email: getEmailDeliveryStatus()
     });
   }
 
-  return res.json({ emailDelivery, email: await getVerifiedEmailDeliveryStatus() });
+  return res.json({ emailDelivery, email: getEmailDeliveryStatus() });
 }
 
 export async function createUser(req, res) {
@@ -121,10 +100,6 @@ export async function createUser(req, res) {
 
   if (existingUser) {
     return res.status(409).json({ message: "A user with this email already exists." });
-  }
-
-  if (!(await requireOperationalEmail(res))) {
-    return;
   }
 
   const temporaryPassword = generateTemporaryPassword();
@@ -204,10 +179,6 @@ export async function resetUserPassword(req, res) {
 
   if (user.role === "admin") {
     return res.status(400).json({ message: "The protected admin password cannot be reset here." });
-  }
-
-  if (!(await requireOperationalEmail(res))) {
-    return;
   }
 
   const temporaryPassword = generateTemporaryPassword();

@@ -71,7 +71,7 @@ $provider = Read-RequiredValue "Provider number"
 switch ($provider) {
   "1" {
     $smtpHost = "smtp.gmail.com"
-    $smtpPort = "587"
+    $smtpPort = "465"
   }
   "2" {
     $smtpHost = "smtp.office365.com"

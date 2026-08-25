@@ -6,26 +6,57 @@ function hasSmtpConfig() {
 }
 
 let transporter;
-let verificationCache;
-const verificationCacheMs = 5 * 60 * 1000;
+let activePort = env.smtp.port;
+let lastDeliveryFailure;
 
-function getTransporter() {
-  if (!transporter) {
-    transporter = nodemailer.createTransport({
+function createTransporter(port) {
+  return nodemailer.createTransport({
       host: env.smtp.host,
-      port: env.smtp.port,
-      secure: env.smtp.port === 465,
+      port,
+      secure: port === 465,
       auth: {
         user: env.smtp.user,
         pass: env.smtp.pass
       },
-      connectionTimeout: 10000,
-      greetingTimeout: 10000,
-      socketTimeout: 15000
+      connectionTimeout: 15000,
+      greetingTimeout: 20000,
+      socketTimeout: 20000
     });
+}
+
+function getTransporter() {
+  if (!transporter) {
+    transporter = createTransporter(activePort);
   }
 
   return transporter;
+}
+
+function replaceTransporter(port) {
+  transporter?.close();
+  activePort = port;
+  transporter = createTransporter(port);
+  return transporter;
+}
+
+function canUseGmailSecurePortFallback(error) {
+  const connectionError = ["ECONNECTION", "ECONNREFUSED", "ETIMEDOUT", "ESOCKET"].includes(
+    error.code
+  );
+  return env.smtp.host === "smtp.gmail.com" && activePort === 587 && connectionError;
+}
+
+async function sendMailWithFallback(message) {
+  try {
+    return await getTransporter().sendMail(message);
+  } catch (error) {
+    if (!canUseGmailSecurePortFallback(error)) {
+      throw error;
+    }
+
+    console.warn("[email-delivery] Gmail port 587 was unavailable; retrying on port 465.");
+    return replaceTransporter(465).sendMail(message);
+  }
 }
 
 function maskEmail(value) {
@@ -52,63 +83,23 @@ export function getEmailDeliveryStatus() {
   }
 
   const configured = hasSmtpConfig();
+  const operational = configured && !lastDeliveryFailure;
 
   return {
     configured,
-    operational: false,
+    operational,
     mode: configured ? "smtp" : "console",
     host: env.smtp.host || "",
-    port: env.smtp.port,
+    port: activePort,
     user: maskEmail(env.smtp.user),
     from: env.smtp.from,
-    message: configured
-      ? "SMTP settings were found. Checking the mail-server connection."
+    errorCode: lastDeliveryFailure?.errorCode,
+    message: lastDeliveryFailure
+      ? lastDeliveryFailure.message
+      : configured
+        ? "Email delivery is configured. Staff credentials will be sent to their email address."
       : "SMTP is not configured. Temporary passwords are written to the backend terminal."
   };
-}
-
-export async function getVerifiedEmailDeliveryStatus() {
-  const status = getEmailDeliveryStatus();
-
-  if (process.env.NODE_ENV === "test" || !status.configured) {
-    return status;
-  }
-
-  if (
-    verificationCache &&
-    Date.now() - verificationCache.checkedAt < verificationCacheMs
-  ) {
-    return verificationCache.status;
-  }
-
-  try {
-    await getTransporter().verify();
-    const verifiedStatus = {
-      ...status,
-      operational: true,
-      message: "Email delivery is active and the SMTP account is authenticated."
-    };
-    verificationCache = { checkedAt: Date.now(), status: verifiedStatus };
-    return verifiedStatus;
-  } catch (error) {
-    console.error("[email-verification-error]", {
-      code: error.code,
-      responseCode: error.responseCode,
-      message: error.message
-    });
-
-    const authenticationFailed = error.code === "EAUTH" || error.responseCode === 535;
-    const failedStatus = {
-      ...status,
-      operational: false,
-      errorCode: authenticationFailed ? "SMTP_AUTH_FAILED" : "SMTP_CONNECTION_FAILED",
-      message: authenticationFailed
-        ? "Gmail rejected the SMTP login. Replace SMTP_PASS with a valid Google App Password and restart the server."
-        : "The SMTP server could not be reached. Check the host, port, network, and provider settings."
-    };
-    verificationCache = { checkedAt: Date.now(), status: failedStatus };
-    return failedStatus;
-  }
 }
 
 async function sendStaffAccessEmail({ to, subject, text }) {
@@ -124,13 +115,14 @@ async function sendStaffAccessEmail({ to, subject, text }) {
     return { sent: false, mode: "console" };
   }
 
-  await getTransporter().sendMail({
+  await sendMailWithFallback({
     from: env.smtp.from,
     to,
     subject,
     text
   });
 
+  lastDeliveryFailure = undefined;
   return { sent: true, mode: "smtp" };
 }
 
@@ -143,7 +135,15 @@ async function deliverStaffAccessEmail(payload) {
       subject: payload.subject,
       message: error.message
     });
-    return { sent: false, mode: "failed", error: error.message };
+    const authenticationFailed = error.code === "EAUTH" || error.responseCode === 535;
+    lastDeliveryFailure = {
+      errorCode: authenticationFailed ? "SMTP_AUTH_FAILED" : "SMTP_DELIVERY_FAILED",
+      message: authenticationFailed
+        ? "Gmail rejected the SMTP login. Update the Google App Password and restart the server."
+        : "The last email could not be delivered. Check the network and try the email test again."
+    };
+    replaceTransporter(env.smtp.port);
+    return { sent: false, mode: "failed", error: lastDeliveryFailure.message };
   }
 }
 
