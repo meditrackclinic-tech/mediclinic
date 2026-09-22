@@ -6,7 +6,7 @@ import {
   listSymptomTimelineByPatient
 } from "../data/clinicalStore.js";
 import { addAuditLog } from "../data/staffStore.js";
-import { extractSymptoms } from "../nlp/symptomExtractor.js";
+import { analyzeSymptomTextWithProvider } from "../nlp/clinicalNlpModel.js";
 
 const symptomSchema = z.object({
   patientId: z.string().min(1),
@@ -25,7 +25,7 @@ export async function createPatientSymptomRecord(req, res) {
     return res.status(404).json({ message: "Patient was not found." });
   }
 
-  const structured = extractSymptoms(parsed.data.description);
+  const structured = await analyzeSymptomTextWithProvider(parsed.data.description);
   const symptomRecord = await createSymptomRecord({
     patientId: parsed.data.patientId,
     rawDescription: parsed.data.description,

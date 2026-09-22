@@ -1,4 +1,5 @@
 import pg from "pg";
+import { createDatabasePoolConfig, databaseProvider } from "../config/database.js";
 import { env } from "../config/env.js";
 
 const { Pool } = pg;
@@ -7,12 +8,28 @@ const shouldUseDatabase =
   process.env.NODE_ENV !== "test" || process.env.USE_POSTGRES_IN_TESTS === "true";
 
 export const hasDatabase = Boolean(env.databaseUrl && shouldUseDatabase);
+export const activeDatabaseProvider = databaseProvider(env.databaseUrl);
 
 export const pool = hasDatabase
-  ? new Pool({
-      connectionString: env.databaseUrl
-    })
+  ? new Pool(
+      createDatabasePoolConfig({
+        connectionString: env.databaseUrl,
+        sslMode: env.databaseSsl,
+        sslRejectUnauthorized: env.databaseSslRejectUnauthorized,
+        sslCa: env.databaseSslCa,
+        max: env.databasePoolMax,
+        idleTimeoutMillis: env.databaseIdleTimeoutMs,
+        connectionTimeoutMillis: env.databaseConnectionTimeoutMs
+      })
+    )
   : null;
+
+pool?.on("error", (error) => {
+  console.error("[database-pool-error]", {
+    provider: activeDatabaseProvider,
+    message: error.message
+  });
+});
 
 export async function query(text, params = []) {
   if (!pool) {
@@ -22,10 +39,13 @@ export async function query(text, params = []) {
   return pool.query(text, params);
 }
 
-export async function initializePostgres() {
-  if (!pool) {
+export async function initializePostgres(database = pool, { seedReferenceData = true } = {}) {
+  if (!database) {
     return;
   }
+
+  // Migrations supply one client so schema changes and data commit together.
+  const query = (text, params) => database.query(text, params);
 
   await query(`
     CREATE TABLE IF NOT EXISTS roles (
@@ -37,7 +57,7 @@ export async function initializePostgres() {
     );
   `);
 
-  await query(`
+  if (seedReferenceData) await query(`
     INSERT INTO roles (id, name, description)
     VALUES
       ('admin', 'System Administrator', 'The single protected account that creates and manages clinic staff.'),
@@ -59,7 +79,7 @@ export async function initializePostgres() {
     );
   `);
 
-  await query(`
+  if (seedReferenceData) await query(`
     INSERT INTO clinics (id, name, region, clinic_type)
     VALUES ('khomas-prototype-clinic', 'Selected Khomas Clinic', 'Khomas Region', 'prototype site')
     ON CONFLICT (id) DO NOTHING;
@@ -228,6 +248,9 @@ export async function initializePostgres() {
     CREATE TABLE IF NOT EXISTS visits (
       id TEXT PRIMARY KEY,
       visit_number TEXT UNIQUE,
+      queue_number TEXT,
+      queued_at TIMESTAMPTZ,
+      nurse_started_at TIMESTAMPTZ,
       patient_id TEXT NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
       clinic_id TEXT REFERENCES clinics(id) ON DELETE SET NULL,
       nurse_id TEXT REFERENCES users(id) ON DELETE SET NULL,
@@ -269,6 +292,13 @@ export async function initializePostgres() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+  `);
+
+  await query(`
+    ALTER TABLE visits
+    ADD COLUMN IF NOT EXISTS queue_number TEXT,
+    ADD COLUMN IF NOT EXISTS queued_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS nurse_started_at TIMESTAMPTZ;
   `);
 
   await query(`

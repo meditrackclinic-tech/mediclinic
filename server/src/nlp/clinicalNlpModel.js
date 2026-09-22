@@ -1,11 +1,36 @@
 import { extractSymptoms } from "./symptomExtractor.js";
+import { env } from "../config/env.js";
+import {
+  enhanceWithHuggingFaceEntities,
+  requestHuggingFaceEntities
+} from "./huggingFaceAdapter.js";
 
 export const CLINICAL_NLP_MODEL = Object.freeze({
   name: "khomas-symptom-structurer",
-  version: "1.2.0",
+  version: "1.3.0",
   type: "deterministic-clinical-information-extraction",
   purpose: "symptom record organisation",
-  diagnostic: false
+  diagnostic: false,
+  provider: "local-rule-based-baseline",
+  capabilities: ["symptoms", "negation", "severity", "duration", "temporal-context"]
+});
+
+export const HUGGING_FACE_NLP_MODEL = Object.freeze({
+  name: "d4data/biomedical-ner-all",
+  revision: "015a4050c9ac99722e61c547aa9b4282bcbedc7f",
+  version: "1.0.0-hybrid",
+  type: "hybrid-clinical-information-extraction",
+  purpose: "symptom record organisation",
+  diagnostic: false,
+  provider: "local-hugging-face-with-rule-fallback",
+  capabilities: [
+    "biomedical-entities",
+    "symptoms",
+    "negation",
+    "severity",
+    "duration",
+    "temporal-context"
+  ]
 });
 
 export const EMPTY_NLP_RESULT = Object.freeze({
@@ -47,6 +72,18 @@ function determineReviewFields(result) {
   return fields;
 }
 
+function finaliseResult(extracted, model, runtime = null) {
+  const reviewFields = determineReviewFields(extracted);
+
+  return {
+    ...extracted,
+    model,
+    ...(runtime ? { nlpRuntime: runtime } : {}),
+    reviewRequired: reviewFields.length > 0 || extracted.confidence < 0.75,
+    reviewFields
+  };
+}
+
 /**
  * Stable application boundary for the NLP component.
  * The output organises patient-reported text; it never diagnoses or recommends treatment.
@@ -54,12 +91,43 @@ function determineReviewFields(result) {
 export function analyzeSymptomText(text) {
   const rawText = normaliseInput(text);
   const extracted = rawText ? extractSymptoms(rawText) : { ...EMPTY_NLP_RESULT };
-  const reviewFields = determineReviewFields(extracted);
+  return finaliseResult(extracted, CLINICAL_NLP_MODEL);
+}
 
-  return {
-    ...extracted,
-    model: CLINICAL_NLP_MODEL,
-    reviewRequired: reviewFields.length > 0 || extracted.confidence < 0.75,
-    reviewFields
-  };
+/**
+ * Runtime NLP path used by API controllers. In hybrid mode, patient text is sent only
+ * to the configured localhost service. A service failure never blocks clinical intake.
+ */
+export async function analyzeSymptomTextWithProvider(text, options = {}) {
+  const rawText = normaliseInput(text);
+  const baseline = analyzeSymptomText(rawText);
+  const provider = options.provider || env.nlp.provider;
+
+  if (provider !== "hybrid" || !rawText) {
+    return baseline;
+  }
+
+  try {
+    const entities = await requestHuggingFaceEntities(rawText, {
+      baseUrl: options.baseUrl || env.nlp.huggingFaceUrl,
+      timeoutMs: options.timeoutMs || env.nlp.timeoutMs,
+      fetchImpl: options.fetchImpl
+    });
+    const enhanced = enhanceWithHuggingFaceEntities(rawText, baseline, entities, {
+      minimumScore: options.minimumScore ?? env.nlp.minimumScore
+    });
+
+    return finaliseResult(enhanced, HUGGING_FACE_NLP_MODEL, {
+      requestedProvider: "hybrid",
+      usedProvider: "local-hugging-face-with-rule-context",
+      fallback: false
+    });
+  } catch {
+    return finaliseResult(baseline, CLINICAL_NLP_MODEL, {
+      requestedProvider: "hybrid",
+      usedProvider: "local-rule-based-baseline",
+      fallback: true,
+      fallbackReason: "Local Hugging Face service unavailable"
+    });
+  }
 }

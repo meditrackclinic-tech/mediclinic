@@ -11,6 +11,12 @@
     "dev": "concurrently \"npm.cmd --workspace server run dev\" \"npm.cmd --workspace client run dev\"",
     "dev:reset": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/free-dev-ports.ps1 && npm.cmd run dev",
     "ports:free": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/free-dev-ports.ps1",
+    "database:migrate:supabase": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/migrate-to-supabase.ps1",
+    "database:verify": "node ./scripts/verify-database.mjs",
+    "database:rehearse": "node ./scripts/verify-migration-local.mjs",
+    "database:backup": "node ./scripts/backup-database.mjs",
+    "nlp:setup": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/setup-clinical-nlp.ps1",
+    "nlp:start": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/start-clinical-nlp.ps1",
     "start": "npm.cmd --workspace server start",
     "test": "npm.cmd --workspace server test",
     "install:all": "npm.cmd install"

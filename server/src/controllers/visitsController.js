@@ -11,7 +11,8 @@ import {
   updateVisitIntake
 } from "../data/clinicalStore.js";
 import { addAuditLog } from "../data/staffStore.js";
-import { buildReviewPrompt, extractSymptoms } from "../nlp/symptomExtractor.js";
+import { analyzeSymptomTextWithProvider, EMPTY_NLP_RESULT } from "../nlp/clinicalNlpModel.js";
+import { buildReviewPrompt } from "../nlp/symptomExtractor.js";
 import { buildHistoryAlerts, classifyVisit } from "../nlp/visitClassifier.js";
 
 const visitTypeValues = [
@@ -233,27 +234,8 @@ function buildQualityChecks(payload, structured) {
 
 async function prepareVisitIntake(payload, patientId) {
   const baseStructured = payload.symptomStatement?.trim()
-    ? extractSymptoms(payload.symptomStatement)
-    : {
-        symptoms: ["unspecified symptom"],
-        activeSymptoms: [],
-        negatedSymptoms: [],
-        historicalSymptoms: [],
-        improvingSymptoms: [],
-        severity: null,
-        duration: null,
-        bodyPart: null,
-        temporalClues: [],
-        confidence: 0.2,
-        mainComplaint: null,
-        symptomsPresent: [],
-        symptomsAbsent: [],
-        frequency: null,
-        progression: null,
-        medicationAction: null,
-        followUpInstruction: null,
-        clinicalSummary: null
-      };
+    ? await analyzeSymptomTextWithProvider(payload.symptomStatement)
+    : { ...EMPTY_NLP_RESULT };
   const structured = applyNurseCorrections(baseStructured, payload.nurseCorrections);
   const previousTimelineEntries = patientId ? await listSymptomTimelineByPatient(patientId) : [];
   const visitType =

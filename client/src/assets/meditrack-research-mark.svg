@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title desc">
+  <title id="title">MediTrack research mark</title>
+  <desc id="desc">A clinical record document with a speech waveform</desc>
+  <rect x="3" y="3" width="58" height="58" rx="16" fill="#ecf7f5" stroke="#0b7f87" stroke-width="3"/>
+  <path d="M20 15h18l8 8v26H20z" fill="#fff" stroke="#18352f" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M38 15v9h8" fill="none" stroke="#18352f" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M25 35h3l3-7 4 14 3-9 2 4h4" fill="none" stroke="#0b7f87" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

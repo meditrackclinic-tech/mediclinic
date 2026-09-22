@@ -5,18 +5,26 @@
 The application uses a layered web architecture:
 
 ```text
-React Frontend -> Express Backend API -> NLP Module -> PostgreSQL Data Store
+React Frontend -> Express Backend API -> Rule NLP + optional localhost Hugging Face service -> Supabase PostgreSQL
 ```
 
-The prototype keeps the architecture close to the research proposal while using PostgreSQL for live staff and clinical records. The JSON store remains only as an isolated fallback for automated tests or development without `DATABASE_URL`.
+The prototype keeps the architecture close to the research proposal while using Supabase-hosted PostgreSQL for live staff and clinical records. Local PostgreSQL remains supported through the same `DATABASE_URL` boundary. The JSON store remains only as an isolated fallback for automated tests or development without `DATABASE_URL`.
 
 ## Components
 
 - Frontend: Login, dashboard, patient registration, symptom submission, symptom timeline, and record search.
 - Backend API: Authentication, authorization, validation, patient management, symptom processing, reports, and timeline data.
-- NLP module: Extracts structured fields from patient-reported symptom descriptions.
+- NLP module: Extracts structured fields from patient-reported symptom descriptions. The tested rule model is always available; optional hybrid mode adds entities from the pinned `d4data/biomedical-ner-all` model running on localhost and falls back to the rules if that service is unavailable.
 - Data store: Persists roles, clinics, staff users, patients, symptom records, vitals, and audit logs.
 - Security controls: Password hashing, JWT authentication, role-based access, and audit logs.
+
+## Supabase Boundary
+
+- The Express backend connects through Supabase's PostgreSQL Session pooler using SSL.
+- Supabase Auth is not used; existing staff passwords, roles, JWT sessions, and first-login password rules remain under the Express API.
+- The connection string is a server-only secret. The React client never imports a Supabase key or accesses clinical tables directly.
+- Row Level Security is enabled on migrated application tables with no public Data API policies. Backend access uses the database owner connection.
+- Existing login sessions are deliberately excluded from migration to avoid transferring stale or revoked authentication state.
 
 ## Database Tables
 

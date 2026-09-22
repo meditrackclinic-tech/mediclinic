@@ -16,7 +16,7 @@ import {
   UserPlus,
   Users
 } from "lucide-react";
-import namibiaCoatOfArms from "../../assets/namibia-coat-of-arms.svg";
+import meditrackResearchMark from "../../assets/meditrack-research-mark.svg";
 
 const roleAliases = {
   admin: "admin",
@@ -105,9 +105,9 @@ export function WorkspaceShell({
       <main className={`nurse-system-shell ${role}-system-shell role-theme-${role}`}>
         <aside className="nurse-system-sidebar">
           <div className="nurse-system-seal">
-            <img src={namibiaCoatOfArms} alt="Republic of Namibia coat of arms" />
+            <img src={meditrackResearchMark} alt="MediTrack research prototype" />
             <div>
-              <span>Ministry clinic portal</span>
+              <span>MediTrack research prototype</span>
               <strong>{portalName}</strong>
             </div>
           </div>
@@ -155,9 +155,9 @@ export function WorkspaceShell({
         <section className="nurse-system-main page-transition" key={`${role}-${activeTab}`}>
           <header className="nurse-system-topbar">
             <div className="nurse-system-topbar-title">
-              <img src={namibiaCoatOfArms} alt="Republic of Namibia coat of arms" />
+              <img src={meditrackResearchMark} alt="MediTrack research prototype" />
               <div>
-                <span>Republic of Namibia clinic record system</span>
+                <span>Patient record research system</span>
                 <strong>{title}</strong>
               </div>
             </div>
@@ -186,9 +186,9 @@ export function WorkspaceShell({
       <aside className={`sidebar role-sidebar role-sidebar-${role}`}>
         {role === "nurse" ? (
           <div className="nurse-official-seal">
-            <img src={namibiaCoatOfArms} alt="Republic of Namibia coat of arms" />
+            <img src={meditrackResearchMark} alt="MediTrack research prototype" />
             <div>
-              <span>Ministry clinic portal</span>
+              <span>MediTrack research prototype</span>
               <strong>Digital Patient Assessment</strong>
             </div>
           </div>
@@ -243,10 +243,10 @@ export function WorkspaceShell({
         <header className="app-topbar">
           <div className="topbar-title-block">
             {role === "nurse" ? (
-              <img className="national-emblem" src={namibiaCoatOfArms} alt="Republic of Namibia coat of arms" />
+              <img className="national-emblem" src={meditrackResearchMark} alt="MediTrack research prototype" />
             ) : null}
             <div>
-              <span>{role === "nurse" ? "Republic of Namibia clinic record system" : "Patient symptom record management"}</span>
+              <span>{role === "nurse" ? "Patient record research system" : "Patient symptom record management"}</span>
               <strong>{title}</strong>
             </div>
           </div>

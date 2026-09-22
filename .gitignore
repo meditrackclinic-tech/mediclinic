@@ -5,6 +5,11 @@ coverage/
 *.log
 server/data/database.json
 server/data/test-database.json
+server/data/*.json.*.tmp
 *-DESKTOP-*.*
 .claude/
 .vscode/
+.firecrawl/
+.venv-nlp/
+__pycache__/
+*.pyc

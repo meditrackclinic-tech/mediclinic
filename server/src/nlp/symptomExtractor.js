@@ -28,12 +28,6 @@ const bodyParts = [
   "throat"
 ];
 
-const severityTerms = {
-  mild: ["mild", "slight", "minor"],
-  moderate: ["moderate", "medium"],
-  severe: ["severe", "bad", "badly", "intense", "serious", "strong"]
-};
-
 const temporalTerms = [
   "had",
   "started",
@@ -82,15 +76,91 @@ const followUpKeywords = [
   "see the doctor again"
 ];
 
-function hasTermNearPattern(text, term, pattern, windowSize = 34) {
+const spokenLanguageAliases = [
+  [/\btummy\s+ache\b/gi, "stomach pain"],
+  [/\bdiarrhoea\b/gi, "diarrhea"],
+  [/\bcoughing\b|\bcoughed\b/gi, "cough"],
+  [/\bisn't\b/gi, "is not"],
+  [/\bnot\s+to\s+severe\b/gi, "not too severe"]
+];
+
+const softenedSeverityPattern = /\b(?:is\s+)?not\s+(?:(?:too|very)\s+)?(?:severe|bad)\b/gi;
+const severityRules = [
+  {
+    severity: "severe",
+    patterns: [/\bsevere\b/i, /\b(?:very\s+painful|unbearable)\b/i, /\b(?:intense|serious|strong)\b/i]
+  },
+  {
+    severity: "moderate",
+    patterns: [/\b(?:moderate|medium)\b/i, /\bsomewhat\s+painful\b/i]
+  },
+  {
+    severity: "mild",
+    patterns: [/\b(?:mild|slight|minor)\b/i, /\b(?:a\s+little|slightly\s+painful)\b/i]
+  }
+];
+
+function normaliseSpokenLanguage(text) {
+  return spokenLanguageAliases.reduce(
+    (normalized, [pattern, replacement]) => normalized.replace(pattern, replacement),
+    String(text || "").toLowerCase()
+  );
+}
+
+function clauseBefore(text, index, windowSize = 48) {
+  const prefix = text.slice(0, index);
+  const boundaryPattern = /(?:[.!?;,]|\bbut\b|\bhowever\b|\byet\b)/gi;
+  let boundary = -1;
+  let match;
+
+  while ((match = boundaryPattern.exec(prefix)) !== null) {
+    boundary = match.index + match[0].length;
+  }
+
+  return text.slice(Math.max(boundary, index - windowSize, 0), index);
+}
+
+function hasTermNearPattern(text, term, pattern, windowSize = 48) {
   const index = text.indexOf(term);
 
   if (index === -1) {
     return false;
   }
 
-  const before = text.slice(Math.max(0, index - windowSize), index + term.length);
+  const before = `${clauseBefore(text, index, windowSize)} ${term}`;
   return pattern.test(before);
+}
+
+function detectSeverity(text) {
+  const softenedMatch = text.match(softenedSeverityPattern)?.[0] || null;
+  const explicitText = text.replace(softenedSeverityPattern, " ");
+
+  for (const rule of severityRules) {
+    for (const pattern of rule.patterns) {
+      const evidence = explicitText.match(pattern)?.[0];
+      if (evidence) {
+        return {
+          severity: rule.severity,
+          severityEvidence: evidence,
+          severityContext: "explicit"
+        };
+      }
+    }
+  }
+
+  if (softenedMatch) {
+    return {
+      severity: "mild",
+      severityEvidence: softenedMatch,
+      severityContext: "softened_or_negated_severity"
+    };
+  }
+
+  return {
+    severity: null,
+    severityEvidence: null,
+    severityContext: null
+  };
 }
 
 function classifySymptoms(text) {
@@ -196,7 +266,7 @@ function joinWithAnd(items) {
   return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
 }
 
-function buildClinicalSummary({ mainComplaint, severity, duration, symptomsPresent, symptomsAbsent, frequency }) {
+export function buildClinicalSummary({ mainComplaint, severity, duration, symptomsPresent, symptomsAbsent, frequency }) {
   if (!mainComplaint) {
     return null;
   }
@@ -216,14 +286,11 @@ function buildClinicalSummary({ mainComplaint, severity, duration, symptomsPrese
 }
 
 export function extractSymptoms(text) {
-  const normalized = text.toLowerCase();
+  const normalized = normaliseSpokenLanguage(text);
   const classified = classifySymptoms(normalized);
   const bodyPart = bodyParts.find((term) => normalized.includes(term)) || null;
   const durationMatch = normalized.match(durationPattern) || normalized.match(relativeDurationPattern);
-  const severity =
-    Object.entries(severityTerms).find(([, words]) =>
-      words.some((word) => normalized.includes(word))
-    )?.[0] || null;
+  const { severity, severityEvidence, severityContext } = detectSeverity(normalized);
   const temporalClues = temporalTerms.filter((term) => normalized.includes(term));
   const extractedSymptoms = classified.present.length ? classified.present : ["unspecified symptom"];
   const duration = durationMatch ? durationMatch[0].replace(/^for\s+/i, "") : null;
@@ -249,6 +316,8 @@ export function extractSymptoms(text) {
     historicalSymptoms: classified.historical,
     improvingSymptoms: classified.improving,
     severity,
+    severityEvidence,
+    severityContext,
     duration,
     bodyPart,
     temporalClues,
