@@ -1,13 +1,15 @@
-import { ArrowLeft, ArrowRight } from "lucide-react";
+import { ArrowLeft, ArrowRight, Eye, EyeOff } from "lucide-react";
 import { useState } from "react";
 import { apiRequest, saveSession } from "../../api.js";
 
 export function LoginPage({ onLogin, onBack }) {
   const [login, setLogin] = useState({ email: "", password: "" });
+  const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState("");
 
   async function handleLogin(event) {
     event.preventDefault();
+    setShowPassword(false);
     try {
       const session = await apiRequest("/auth/login", {
         method: "POST",
@@ -66,19 +68,32 @@ export function LoginPage({ onLogin, onBack }) {
               />
             </label>
 
-            <label className="lg-field">
-              <span>Password</span>
-              <input
-                autoComplete="new-password"
-                data-1p-ignore="true"
-                data-lpignore="true"
-                name="staff-access-key"
-                value={login.password}
-                onChange={(event) => setLogin({ ...login, password: event.target.value })}
-                type="password"
-                required
-              />
-            </label>
+            <div className="lg-field">
+              <label htmlFor="staff-password">Password</label>
+              <div className="lg-password-control">
+                <input
+                  id="staff-password"
+                  autoComplete="new-password"
+                  data-1p-ignore="true"
+                  data-lpignore="true"
+                  name="staff-access-key"
+                  value={login.password}
+                  onChange={(event) => setLogin({ ...login, password: event.target.value })}
+                  type={showPassword ? "text" : "password"}
+                  required
+                />
+                <button
+                  className="lg-password-toggle"
+                  type="button"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  aria-controls="staff-password"
+                  onClick={() => setShowPassword((visible) => !visible)}
+                >
+                  {showPassword ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
+                  <span>{showPassword ? "Hide" : "Show"}</span>
+                </button>
+              </div>
+            </div>
 
             <button className="lg-submit" type="submit">
               Open workspace
